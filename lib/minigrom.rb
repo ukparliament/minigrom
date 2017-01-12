@@ -27,6 +27,47 @@ module Minigrom
     end
   end
 
+  def self.process_ttl_data(data)
+    @statements_by_subject = {}
+    # @statements_by_predicate = {}
+    @type_by_subject = {}
+    @subjects = Set.new
+    @objects = []
+
+    type_uri = RDF.type.to_s
+
+    # iterate through and stream things
+    RDF::Turtle::Reader.new(data) do |reader|
+      reader.each_statement do |statement|
+        subject = statement.subject.to_s
+        @subjects.add(subject)
+        @statements_by_subject[subject] ||= []
+        @statements_by_subject[subject] << statement
+
+        predicate = statement.predicate.to_s
+        # @statements_by_predicate[predicate] ||= []
+        # @statements_by_predicate[predicate] << statement
+
+        # is this statement a type definition?
+        if predicate == type_uri # && !['HouseOfCommons'].include?(statement.object)
+          @type_by_subject[subject] = get_id(statement.object)
+        end
+      end
+    end
+
+    @subjects.each do |subject|
+      begin
+        # create whatever class is in the hash
+        class_name = Object.const_get(@type_by_subject[subject])
+
+        @objects << class_name.new(@statements_by_subject[subject])
+      rescue
+      end
+    end
+
+    @objects
+  end
+
   def self.get_id(uri)
     uri == RDF.type.to_s ? 'type' : uri.to_s.split('/').last
   end
